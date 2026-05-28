@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { ActiveSet, useSessionStore } from '../store/session'
+import { PrevSet } from '../api/sessions'
 
 interface SetRowProps {
   exerciseId: string
   setIndex: number
   set: ActiveSet
   setNumber: number
+  prev?: PrevSet | null
 }
 
 const EFFORT_LABELS: Record<1 | 2 | 3 | 4, string> = {
@@ -22,7 +24,14 @@ const EFFORT_ACTIVE: Record<1 | 2 | 3 | 4, string> = {
   4: 'bg-red-500 text-white border-red-500',
 }
 
-export function SetRow({ exerciseId, setIndex, set, setNumber }: SetRowProps) {
+const EFFORT_GHOST: Record<1 | 2 | 3 | 4, string> = {
+  1: 'text-sky-700',
+  2: 'text-emerald-700',
+  3: 'text-amber-700',
+  4: 'text-red-700',
+}
+
+export function SetRow({ exerciseId, setIndex, set, setNumber, prev }: SetRowProps) {
   const { updateSet, toggleDone } = useSessionStore()
   const [obsOpen, setObsOpen] = useState(false)
 
@@ -41,6 +50,30 @@ export function SetRow({ exerciseId, setIndex, set, setNumber }: SetRowProps) {
 
   return (
     <div className={set.done ? 'opacity-40' : ''}>
+      {prev && (
+        <div className="flex items-center gap-2 py-0.5">
+          <span className="w-5 shrink-0 text-center text-xs text-zinc-700">·</span>
+          <span className="flex-1 text-center text-xs text-zinc-700">
+            {prev.weight != null ? prev.weight : '—'}
+          </span>
+          <span className="flex-1 text-center text-xs text-zinc-700">
+            {prev.reps != null ? prev.reps : '—'}
+          </span>
+          <div className="flex gap-1 shrink-0">
+            {([1, 2, 3, 4] as const).map((lvl) => (
+              <span
+                key={lvl}
+                className={`w-7 h-5 rounded-sm text-xs font-bold flex items-center justify-center ${
+                  prev.perceived_difficulty === lvl ? EFFORT_GHOST[lvl] : 'text-zinc-800'
+                }`}
+              >
+                {lvl}
+              </span>
+            ))}
+          </div>
+          <span className="w-9 text-center text-xs text-zinc-700">ant</span>
+        </div>
+      )}
       <div className="flex items-center gap-2 py-1.5">
         <span className="w-5 shrink-0 text-center text-xs text-zinc-600 font-medium">{setNumber}</span>
 

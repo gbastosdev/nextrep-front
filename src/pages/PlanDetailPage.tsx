@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { plansApi, ApiPlan, ApiDay } from '../storage/plans'
-import { exercisesApi, ApiExercise } from '../storage/exercises'
+import { plansApi, ApiPlan, ApiDay } from '../api/plans'
+import { exercisesApi, ApiExercise } from '../api/exercises'
 
 type DragPos = { dayId: string; index: number }
 

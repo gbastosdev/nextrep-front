@@ -1,12 +1,14 @@
 import { DayExercise } from '../data/mock'
 import { useSessionStore } from '../store/session'
+import { PrevSet } from '../api/sessions'
 import { SetRow } from './SetRow'
 
 interface ExerciseCardProps {
   dayExercise: DayExercise
+  prevSets?: PrevSet[]
 }
 
-export function ExerciseCard({ dayExercise }: ExerciseCardProps) {
+export function ExerciseCard({ dayExercise, prevSets }: ExerciseCardProps) {
   const { executions, addSet } = useSessionStore()
   const execution = executions.find((e) => e.exerciseId === dayExercise.exercise.id)
 
@@ -47,6 +49,7 @@ export function ExerciseCard({ dayExercise }: ExerciseCardProps) {
           setIndex={i}
           set={set}
           setNumber={i + 1}
+          prev={prevSets?.[i] ?? null}
         />
       ))}
 

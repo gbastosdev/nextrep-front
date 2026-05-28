@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { mockPlans, DayExercise } from '../data/mock'
-import { ApiDay } from '../storage/plans'
+import { ApiDay } from '../api/plans'
+import { sessionsApi, ApiLastSession } from '../api/sessions'
 import { useSessionStore } from '../store/session'
+import { useAuthStore } from '../store/auth'
 import { ExerciseCard } from '../components/ExerciseCard'
 
 function apiDayToExercises(day: ApiDay): DayExercise[] {
@@ -19,22 +21,43 @@ export function WorkoutPage() {
   const { dayId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { dayId: activeDayId, startedAt, executions, startSession, finishSession } = useSessionStore()
+  const {
+    dayId: activeDayId,
+    dayName: storedDayName,
+    startedAt,
+    dayExercises: storedDayExercises,
+    executions,
+    startSession,
+    finishSession,
+  } = useSessionStore((s) => s)
   const [elapsed, setElapsed] = useState(0)
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [lastSession, setLastSession] = useState<ApiLastSession | null>(null)
+
+  // Resuming an existing session — all data already in store
+  const isResuming = activeDayId === dayId && storedDayExercises.length > 0
 
   const apiDay = location.state?.day as ApiDay | undefined
   const mockDay = mockPlans.flatMap((p) => p.days).find((d) => d.id === dayId)
 
-  const dayName = apiDay?.name ?? mockDay?.name ?? 'Treino'
-  const dayExercises: DayExercise[] = apiDay ? apiDayToExercises(apiDay) : (mockDay?.exercises ?? [])
-  const dayFound = apiDay != null || mockDay != null
+  const dayName = isResuming
+    ? (storedDayName ?? 'Treino')
+    : (apiDay?.name ?? mockDay?.name ?? 'Treino')
+
+  const dayExercises: DayExercise[] = isResuming
+    ? storedDayExercises
+    : apiDay
+      ? apiDayToExercises(apiDay)
+      : (mockDay?.exercises ?? [])
+
+  const dayFound = isResuming || apiDay != null || mockDay != null
 
   useEffect(() => {
     if (!dayFound || !dayId) return
     if (activeDayId !== dayId) {
-      startSession(dayId, dayExercises)
+      startSession(dayId, dayName, dayExercises)
       setCurrentIndex(0)
+      sessionsApi.lastForDay(dayId).then(setLastSession).catch(() => {})
     }
   }, [dayId])
 
@@ -65,7 +88,34 @@ export function WorkoutPage() {
     return `${m}:${s.toString().padStart(2, '0')}`
   }
 
-  function handleFinish() {
+  async function handleFinish() {
+    const token = useAuthStore.getState().token
+    if (token && startedAt) {
+      try {
+        const payload = {
+          workout_day_id: activeDayId,
+          started_at: new Date(startedAt).toISOString(),
+          executions: executions
+            .map((ex, i) => ({
+              exercise_id: ex.exerciseId,
+              order_index: i,
+              sets: ex.sets
+                .filter((s) => s.done)
+                .map((s, j) => ({
+                  set_number: j + 1,
+                  weight: s.weight,
+                  reps: s.reps,
+                  perceived_difficulty: s.effort,
+                  notes: s.obs || null,
+                })),
+            }))
+            .filter((ex) => ex.sets.length > 0),
+        }
+        await sessionsApi.complete(payload)
+      } catch {
+        // save failed silently — session still clears
+      }
+    }
     finishSession()
     navigate('/plans')
   }
@@ -76,7 +126,6 @@ export function WorkoutPage() {
 
   return (
     <div className="min-h-screen pb-36">
-      {/* Header */}
       <div className="sticky top-0 bg-zinc-950/90 backdrop-blur-sm border-b border-zinc-800/60 px-4 py-3">
         <div className="flex justify-between items-start">
           <div>
@@ -95,7 +144,6 @@ export function WorkoutPage() {
         )}
       </div>
 
-      {/* Exercise position indicator */}
       <div className="px-4 pt-5 pb-1 flex items-center justify-between">
         <div className="flex gap-1.5">
           {dayExercises.map((_, i) => (
@@ -113,12 +161,19 @@ export function WorkoutPage() {
         </span>
       </div>
 
-      {/* Current exercise */}
       <div className="px-4 pt-3">
-        {currentExercise && <ExerciseCard dayExercise={currentExercise} />}
+        {currentExercise && (
+          <ExerciseCard
+            dayExercise={currentExercise}
+            prevSets={
+              lastSession?.executions.find(
+                (e) => e.exercise_id === currentExercise.exercise.id,
+              )?.sets
+            }
+          />
+        )}
       </div>
 
-      {/* Footer */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 py-4 bg-zinc-950/95 backdrop-blur-sm border-t border-zinc-800/60 flex flex-col gap-2">
         {!isLast && (
           <button
